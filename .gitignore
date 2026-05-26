@@ -3,6 +3,20 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+# Isi tubes yg ga penting
+/assets
+/css
+/proxy_cache
+
+/status
+
+3file.zip
+implementation.html
+index.html
+osi.html
+qos.html
+tcpip.html
+
 # C extensions
 *.so
 
