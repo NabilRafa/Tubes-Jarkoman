@@ -2,7 +2,6 @@ import socket
 import time
 import sys
 import threading
-import argparse
 
 # ─── Konfigurasi ────────────────────────────────────────────────────
 PROXY_HOST   = "192.168.18.64"   # ubah ke IP proxy
@@ -212,56 +211,36 @@ def run_multi(num_clients=5, udp_count=UDP_PACKET_COUNT):
 
 # ────────────────────────────────────────────────────────────────────
 # Entry point — pilih mode via argv
-#   python client.py -mode tcp --path /index.html
-#   python client.py -mode udp --jumlah 10
-#   python client.py -mode multi --jumlah 5
-#   python client.py single        (mode interaktif, masih didukung)
+#   py client.py single
+#   py client.py multi [jumlah_client]
 # ────────────────────────────────────────────────────────────────────
 
 def main():
-    # Normalisasi: terima "-mode" / "-path" / "-jumlah" (single dash)
-    # dan ubah jadi "--mode" / "--path" / "--jumlah" agar argparse paham
-    raw_args = sys.argv[1:]
-    for i, a in enumerate(raw_args):
-        low = a.lower()
-        if low in ("-mode", "-path", "-jumlah"):
-            raw_args[i] = "-" + a
-    sys.argv = [sys.argv[0]] + raw_args
+    args = sys.argv[1:]
 
-    # Dukungan lama: "python client.py single" / "python client.py multi [n]"
-    if len(sys.argv) > 1 and sys.argv[1].lower() in ("single", "multi") and not sys.argv[1].startswith("-"):
-        legacy_mode = sys.argv[1].lower()
-        if legacy_mode == "single":
-            run_single()
-            return
-        else:
-            n = 5
-            if len(sys.argv) > 2:
-                try:
-                    n = int(sys.argv[2])
-                except ValueError:
-                    print(f"[WARN] '{sys.argv[2]}' bukan angka valid, pakai default n=5")
-            run_multi(num_clients=n)
-            return
-
-    # Mode baru: --mode tcp/udp/multi
-    parser = argparse.ArgumentParser(description="Client TCP/UDP - Jaringan Komputer Modul 8")
-    parser.add_argument("--mode", choices=["tcp", "udp", "multi", "single"],
-                         default="single", help="Mode operasi client")
-    parser.add_argument("--path", default="/index.html",
-                         help="Path HTTP untuk mode tcp (default: /index.html)")
-    parser.add_argument("--jumlah", type=int, default=UDP_PACKET_COUNT,
-                         help="Jumlah paket UDP (mode udp) atau jumlah client (mode multi)")
-    args = parser.parse_args()
-
-    if args.mode == "tcp":
-        http_get(args.path, label="CLIENT")
-    elif args.mode == "udp":
-        udp_qos(count=args.jumlah)
-    elif args.mode == "multi":
-        run_multi(num_clients=args.jumlah, udp_count=UDP_PACKET_COUNT)
-    else:  # single
+    if not args:
+        print("Usage:")
+        print("  py client.py single")
+        print("  py client.py multi [jumlah_client]")
+        print("\nTidak ada argumen, menjalankan mode SINGLE secara default...\n")
         run_single()
+        return
+
+    mode = args[0].lower()
+
+    if mode == "single":
+        run_single()
+    elif mode == "multi":
+        n = 5
+        if len(args) > 1:
+            try:
+                n = int(args[1])
+            except ValueError:
+                print(f"[WARN] '{args[1]}' bukan angka valid, pakai default n=5")
+        run_multi(num_clients=n)
+    else:
+        print(f"[ERROR] Mode '{mode}' tidak dikenal. Gunakan 'single' atau 'multi'.")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

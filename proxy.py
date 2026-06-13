@@ -6,11 +6,11 @@ import datetime
 import time
 
 # ─── Konfigurasi ────────────────────────────────────────────────────
-PROXY_HOST    = "0.0.0.0"
+PROXY_HOST    = "127.0.0.1"
 PROXY_PORT    = 8080
 
 # Alamat Web Server — ubah
-WEBSERVER_HOST = "192.168.1.28"
+WEBSERVER_HOST = "127.0.0.1" # 127.0.0.1 (local)
 WEBSERVER_PORT = 8000
 
 CONNECT_TIMEOUT  = 5   # detik — timeout koneksi ke server
