@@ -9,8 +9,8 @@ import time
 PROXY_HOST    = "0.0.0.0"
 PROXY_PORT    = 8080
 
-# Alamat Web Server — ubah
-WEBSERVER_HOST = "192.168.1.28"
+# Alamat Web Server
+WEBSERVER_HOST = "127.0.0.1" # ubah yang ini
 WEBSERVER_PORT = 8000
 
 CONNECT_TIMEOUT  = 5   # detik — timeout koneksi ke server

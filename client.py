@@ -4,10 +4,10 @@ import sys
 import threading
 
 # ─── Konfigurasi ────────────────────────────────────────────────────
-PROXY_HOST   = "10.211.61.1"   # ubah ke IP proxy
+PROXY_HOST   = "127.0.0.1"   # ubah yang ini  ke IP proxy
 PROXY_PORT   = 8080
 
-SERVER_UDP_HOST = "10.211.61.5"  # ubah ke IP webserver
+SERVER_UDP_HOST = "127.0.0.1"  # ubah yang ini ke IP webserver
 SERVER_UDP_PORT = 9000
 
 UDP_PACKET_COUNT = 10
