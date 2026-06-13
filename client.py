@@ -1,6 +1,7 @@
 import socket
 import time
-import datetime
+import sys
+import threading
 
 # ─── Konfigurasi ────────────────────────────────────────────────────
 PROXY_HOST   = "10.211.61.1"   # ubah ke IP proxy
@@ -12,12 +13,21 @@ SERVER_UDP_PORT = 9000
 UDP_PACKET_COUNT = 10
 UDP_TIMEOUT      = 1.0          # detik per paket
 
+# Path-path yang dipakai untuk demo multi-client (HIT vs MISS)
+MULTI_CLIENT_PATHS = [
+    "/index.html",
+    "/index.html",   # sama -> sebagian HIT
+    "/about.html",
+    "/about.html",   # sama -> sebagian HIT
+    "/contact.html",
+]
+
 
 # ────────────────────────────────────────────────────────────────────
-# MODE 1 — HTTP via Proxy (TCP)
+# MODE HTTP via Proxy (TCP)
 # ────────────────────────────────────────────────────────────────────
 
-def http_get(path="/"):
+def http_get(path="/", label="CLIENT"):
     """
     Kirim HTTP GET ke Proxy, terima respons, tampilkan header + body.
     """
@@ -28,7 +38,7 @@ def http_get(path="/"):
         f"\r\n"
     )
 
-    print(f"\n[CLIENT] Connecting to proxy {PROXY_HOST}:{PROXY_PORT} ...")
+    print(f"\n[{label}] Connecting to proxy {PROXY_HOST}:{PROXY_PORT} for {path} ...")
     start = time.time()
 
     try:
@@ -46,14 +56,13 @@ def http_get(path="/"):
         s.close()
 
         elapsed = (time.time() - start) * 1000
-        print(f"[CLIENT] Response received in {elapsed:.1f} ms  ({len(response)} bytes)\n")
+        print(f"[{label}] Response received in {elapsed:.1f} ms  ({len(response)} bytes)  path={path}")
 
-        # Pisahkan header dan body
         if b"\r\n\r\n" in response:
             header_bytes, body = response.split(b"\r\n\r\n", 1)
-            print("─── HTTP RESPONSE HEADER ───")
+            print(f"─── [{label}] HTTP RESPONSE HEADER ({path}) ───")
             print(header_bytes.decode("utf-8", errors="replace"))
-            print("─── BODY (first 1000 chars) ───")
+            print(f"─── [{label}] BODY (first 1000 chars) ───")
             body_text = body.decode("utf-8", errors="replace")
             print(body_text[:1000])
             if len(body_text) > 1000:
@@ -62,26 +71,25 @@ def http_get(path="/"):
             print(response.decode("utf-8", errors="replace"))
 
     except ConnectionRefusedError:
-        print(f"[CLIENT] ERROR: Proxy tidak dapat dijangkau di {PROXY_HOST}:{PROXY_PORT}")
+        print(f"[{label}] ERROR: Proxy tidak dapat dijangkau di {PROXY_HOST}:{PROXY_PORT}")
     except socket.timeout:
-        print("[CLIENT] ERROR: Request timeout")
+        print(f"[{label}] ERROR: Request timeout")
     except Exception as e:
-        print(f"[CLIENT] ERROR: {e}")
+        print(f"[{label}] ERROR: {e}")
 
 
 # ────────────────────────────────────────────────────────────────────
-# MODE 2 — UDP QoS Ping
+# MODE QoS Ping (UDP)
 # ────────────────────────────────────────────────────────────────────
 
-def udp_qos(count=UDP_PACKET_COUNT):
-    print(f"\n[CLIENT-UDP] Pinging {SERVER_UDP_HOST}:{SERVER_UDP_PORT} — {count} packets\n")
+def udp_qos(count=UDP_PACKET_COUNT, label="CLIENT-UDP"):
+    print(f"\n[{label}] Pinging {SERVER_UDP_HOST}:{SERVER_UDP_PORT} — {count} packets\n")
 
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.settimeout(UDP_TIMEOUT)
 
     rtts = []
     lost = 0
-    prev_rtt = None
 
     for seq in range(1, count + 1):
         ts = time.time()
@@ -94,17 +102,16 @@ def udp_qos(count=UDP_PACKET_COUNT):
             data, _ = s.recvfrom(1024)
             rtt = (time.time() - send_time) * 1000   # ms
             rtts.append(rtt)
-            print(f"  seq={seq:>2}  RTT={rtt:.3f} ms  payload={data.decode('utf-8', errors='replace')}")
+            print(f"  [{label}] seq={seq:>2}  RTT={rtt:.3f} ms  payload={data.decode('utf-8', errors='replace')}")
         except socket.timeout:
             lost += 1
-            print(f"  seq={seq:>2}  Request timed out")
+            print(f"  [{label}] seq={seq:>2}  Request timed out")
 
         time.sleep(0.1)   # jeda kecil antar paket
 
     s.close()
 
-    # ── Statistik ──────────────────────────────────────────────────
-    print("\n─── QoS STATISTICS ───────────────────────────────────")
+    print(f"\n─── [{label}] QoS STATISTICS ───────────────────────────────────")
     print(f"  Packets sent     : {count}")
     print(f"  Packets received : {len(rtts)}")
     print(f"  Packet loss      : {lost}/{count}  ({lost/count*100:.1f}%)")
@@ -114,7 +121,6 @@ def udp_qos(count=UDP_PACKET_COUNT):
         max_rtt  = max(rtts)
         avg_rtt  = sum(rtts) / len(rtts)
 
-        # Jitter = rata-rata |RTT[i] - RTT[i-1]|
         jitter = 0.0
         if len(rtts) > 1:
             diffs  = [abs(rtts[i] - rtts[i-1]) for i in range(1, len(rtts))]
@@ -130,20 +136,20 @@ def udp_qos(count=UDP_PACKET_COUNT):
 
 
 # ────────────────────────────────────────────────────────────────────
-# Menu Utama
+# SINGLE MODE — menu interaktif (perilaku original)
 # ────────────────────────────────────────────────────────────────────
 
-def print_banner():
+def print_banner(mode_label):
     print("=" * 55)
-    print("  CLIENT.PY - Jaringan Komputer Modul 8")
+    print(f"  CLIENT.PY - Jaringan Komputer Modul 8 [{mode_label}]")
     print("=" * 55)
     print(f"  Proxy    : {PROXY_HOST}:{PROXY_PORT}")
     print(f"  UDP echo : {SERVER_UDP_HOST}:{SERVER_UDP_PORT}")
     print("=" * 55)
 
 
-def menu():
-    print_banner()
+def run_single():
+    print_banner("SINGLE")
     while True:
         print("\n  [1] HTTP GET via Proxy (TCP)")
         print("  [2] QoS Ping via UDP")
@@ -170,5 +176,72 @@ def menu():
             print("  Pilihan tidak valid, coba lagi.")
 
 
+# ────────────────────────────────────────────────────────────────────
+# MULTI MODE — spawn beberapa client thread sekaligus
+# (memenuhi ketentuan: pengujian minimal 5 client konkuren,
+#  request ke path berbeda untuk uji MISS dan path sama untuk uji HIT)
+# ────────────────────────────────────────────────────────────────────
+
+def run_multi(num_clients=5, udp_count=UDP_PACKET_COUNT):
+    print_banner(f"MULTI x{num_clients}")
+    print(f"\n[MULTI] Menjalankan {num_clients} client HTTP secara konkuren...")
+    print(f"[MULTI] Daftar path: {MULTI_CLIENT_PATHS[:num_clients]}\n")
+
+    threads = []
+
+    # ── Spawn N client HTTP secara bersamaan ──────────────────────
+    for i in range(num_clients):
+        path = MULTI_CLIENT_PATHS[i % len(MULTI_CLIENT_PATHS)]
+        label = f"CLIENT-{i+1}"
+        t = threading.Thread(target=http_get, args=(path, label), daemon=True)
+        threads.append(t)
+
+    start = time.time()
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    elapsed = (time.time() - start) * 1000
+    print(f"\n[MULTI] Semua {num_clients} client HTTP selesai dalam {elapsed:.1f} ms total")
+
+    # ── Jalankan UDP QoS test setelah HTTP selesai ────────────────
+    print("\n[MULTI] Menjalankan QoS UDP test...")
+    udp_qos(udp_count, label="CLIENT-UDP")
+
+
+# ────────────────────────────────────────────────────────────────────
+# Entry point — pilih mode via argv
+#   py client.py single
+#   py client.py multi [jumlah_client]
+# ────────────────────────────────────────────────────────────────────
+
+def main():
+    args = sys.argv[1:]
+
+    if not args:
+        print("Usage:")
+        print("  py client.py single")
+        print("  py client.py multi [jumlah_client]")
+        print("\nTidak ada argumen, menjalankan mode SINGLE secara default...\n")
+        run_single()
+        return
+
+    mode = args[0].lower()
+
+    if mode == "single":
+        run_single()
+    elif mode == "multi":
+        n = 5
+        if len(args) > 1:
+            try:
+                n = int(args[1])
+            except ValueError:
+                print(f"[WARN] '{args[1]}' bukan angka valid, pakai default n=5")
+        run_multi(num_clients=n)
+    else:
+        print(f"[ERROR] Mode '{mode}' tidak dikenal. Gunakan 'single' atau 'multi'.")
+        sys.exit(1)
+
+
 if __name__ == "__main__":
-    menu()
+    main()
