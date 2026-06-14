@@ -5,10 +5,10 @@ import threading
 import argparse
 
 # ─── Konfigurasi ────────────────────────────────────────────────────
-PROXY_HOST   = "192.168.18.64"   # ubah ke IP proxy
+PROXY_HOST   = "192.168.18.9"   # ubah ke IP proxy
 PROXY_PORT   = 8080
 
-SERVER_UDP_HOST = "192.168.18.178"  # ubah ke IP webserver
+SERVER_UDP_HOST = "192.168.18.7"  # ubah ke IP webserver
 SERVER_UDP_PORT = 9000
 
 UDP_PACKET_COUNT = 10
@@ -92,6 +92,10 @@ def udp_qos(count=UDP_PACKET_COUNT, label="CLIENT-UDP"):
     rtts = []
     lost = 0
 
+    # Untuk throughput
+    total_bytes = 0
+    test_start = time.time()
+
     for seq in range(1, count + 1):
         ts = time.time()
         payload = f"Ping {seq} {ts:.6f}".encode("utf-8")
@@ -101,40 +105,66 @@ def udp_qos(count=UDP_PACKET_COUNT, label="CLIENT-UDP"):
 
         try:
             data, _ = s.recvfrom(1024)
-            rtt = (time.time() - send_time) * 1000   # ms
+
+            rtt = (time.time() - send_time) * 1000  # ms
             rtts.append(rtt)
-            print(f"  [{label}] seq={seq:>2}  RTT={rtt:.3f} ms  payload={data.decode('utf-8', errors='replace')}")
+
+            # Hitung total data diterima
+            total_bytes += len(data)
+
+            print(
+                f"  [{label}] seq={seq:>2}  RTT={rtt:.3f} ms  "
+                f"payload={data.decode('utf-8', errors='replace')}"
+            )
+
         except socket.timeout:
             lost += 1
             print(f"  [{label}] seq={seq:>2}  Request timed out")
 
-        time.sleep(0.1)   # jeda kecil antar paket
+        time.sleep(0.1)
+
+    # Durasi total pengujian
+    test_duration = time.time() - test_start
 
     s.close()
 
     print(f"\n─── [{label}] QoS STATISTICS ───────────────────────────────────")
     print(f"  Packets sent     : {count}")
     print(f"  Packets received : {len(rtts)}")
-    print(f"  Packet loss      : {lost}/{count}  ({lost/count*100:.1f}%)")
+    print(f"  Packet loss      : {lost}/{count} ({lost/count*100:.1f}%)")
 
     if rtts:
-        min_rtt  = min(rtts)
-        max_rtt  = max(rtts)
-        avg_rtt  = sum(rtts) / len(rtts)
+        min_rtt = min(rtts)
+        max_rtt = max(rtts)
+        avg_rtt = sum(rtts) / len(rtts)
 
         jitter = 0.0
         if len(rtts) > 1:
-            diffs  = [abs(rtts[i] - rtts[i-1]) for i in range(1, len(rtts))]
+            diffs = [
+                abs(rtts[i] - rtts[i - 1])
+                for i in range(1, len(rtts))
+            ]
             jitter = sum(diffs) / len(diffs)
+
+        # Throughput dalam Kbps
+        throughput_bps = (
+            (total_bytes * 8) / test_duration
+            if test_duration > 0
+            else 0
+        )
+
+        throughput_kbps = throughput_bps / 1000
 
         print(f"  Min RTT          : {min_rtt:.3f} ms")
         print(f"  Avg RTT          : {avg_rtt:.3f} ms")
         print(f"  Max RTT          : {max_rtt:.3f} ms")
         print(f"  Jitter           : {jitter:.3f} ms")
+        print(f"  Throughput       : {throughput_kbps:.3f} Kbps")
+
     else:
         print("  Semua paket hilang — tidak ada data RTT.")
-    print("──────────────────────────────────────────────────────")
 
+    print("──────────────────────────────────────────────────────")
 
 # ────────────────────────────────────────────────────────────────────
 # SINGLE MODE — menu interaktif (perilaku original)
